@@ -50,6 +50,7 @@ jobs:
       - name: 安装依赖
         run: |
           pip install --upgrade pip
+          pip install duckduckgo-search  # ⬅️ 显式安装 DDG 库
           pip install -r requirements.txt
       
       - name: 创建必要目录
