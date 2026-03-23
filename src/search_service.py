@@ -970,6 +970,79 @@ class MiniMaxSearchProvider(BaseSearchProvider):
             return '未知来源'
 
 
+class DuckDuckGoSearchProvider(BaseSearchProvider):
+    """
+    DuckDuckGo 搜索引擎 (免 Key 备用方案)
+    """
+
+    def __init__(self):
+        # DDG 不需要 API Key，所以传一个空列表给基类
+        super().__init__([], "DuckDuckGo")
+
+    @property
+    def is_available(self) -> bool:
+        # 只要代码能跑，它就是可用的
+        return True
+
+    def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
+        """执行 DDG 搜索"""
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            return SearchResponse(
+                query=query, results=[], provider=self.name,
+                success=False, error_message="请安装依赖: pip install duckduckgo-search"
+            )
+
+        try:
+            with DDGS() as ddgs:
+                # 时间范围映射：d(天), w(周), m(月)
+                time_limit = 'w'
+                if days <= 1: time_limit = 'd'
+                elif days > 30: time_limit = 'm'
+
+                # 抓取结果
+                # region='cn-zh' 确保优先获取中文财经信息
+                ddg_gen = ddgs.text(
+                    query,
+                    region='cn-zh',
+                    safesearch='off',
+                    timelimit=time_limit,
+                    max_results=max_results
+                )
+                
+                results = []
+                for item in ddg_gen:
+                    results.append(SearchResult(
+                        title=item.get('title', ''),
+                        snippet=item.get('body', '')[:500],
+                        url=item.get('href', ''),
+                        source=self._extract_domain(item.get('href', '')),
+                        published_date=None  # DDG 基础接口不带结构化日期
+                    ))
+
+                return SearchResponse(
+                    query=query,
+                    results=results,
+                    provider=self.name,
+                    success=True
+                )
+        except Exception as e:
+            logger.error(f"[DDG] 搜索异常: {e}")
+            return SearchResponse(
+                query=query, results=[], provider=self.name,
+                success=False, error_message=str(e)
+            )
+
+    @staticmethod
+    def _extract_domain(url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            return urlparse(url).netloc.replace('www.', '')
+        except:
+            return "DuckDuckGo"
+
+
 class BraveSearchProvider(BaseSearchProvider):
     """
     Brave Search 搜索引擎
